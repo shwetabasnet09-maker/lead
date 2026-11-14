@@ -1,0 +1,11 @@
+{% extends "admin/base_site.html" %}
+{% load i18n unfold %}
+{% block content %}
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+  {% component "unfold/components/card.html" %}<div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">All leads</div><div class="text-3xl font-semibold">{{ lead_count }}</div>{% endcomponent %}
+  {% component "unfold/components/card.html" %}<div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">New</div><div class="text-3xl font-semibold">{{ new_leads }}</div>{% endcomponent %}
+  {% component "unfold/components/card.html" %}<div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">Converted</div><div class="text-3xl font-semibold">{{ converted_leads }}</div>{% endcomponent %}
+  {% component "unfold/components/card.html" %}<div class="text-sm text-font-subtle-light dark:text-font-subtle-dark">Source errors</div><div class="text-3xl font-semibold">{{ source_errors }}</div>{% endcomponent %}
+</div>
+{{ block.super }}
+{% endblock %}

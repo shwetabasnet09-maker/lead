@@ -1,0 +1,33 @@
+{% extends "leads/settings/_layout.html" %}
+{% block title %}Search area & keywords · {{ APP_NAME }}{% endblock %}
+{% block heading %}Search area &amp; keywords{% endblock %}
+{% block intro %}Tell the scanner where you work and what to look for. Changes apply from the next scan.{% endblock %}
+{% block settings_content %}
+<div class="two-column">
+  <section class="panel">
+    <h2>Keywords</h2>
+    <form method="post" class="keyword-add">
+      {% csrf_token %}<input type="hidden" name="form" value="keyword">
+      {% if keyword_form.non_field_errors %}<div class="field-error">{{ keyword_form.non_field_errors|join:" " }}</div>{% endif %}
+      {% include "leads/settings/_field.html" with field=keyword_form.term %}
+      {% include "leads/settings/_field.html" with field=keyword_form.kind %}
+      {% include "leads/settings/_field.html" with field=keyword_form.category %}
+      <button class="button primary" type="submit">Add</button>
+    </form>
+
+    <h3 class="list-heading">Find posts with these <span class="count-pill">{{ positive|length }}</span></h3>
+    {% include "leads/settings/_keyword_list.html" with keywords=positive empty="Add a keyword so scans know what to look for." %}
+    <h3 class="list-heading">Skip posts with these <span class="count-pill">{{ negative|length }}</span></h3>
+    {% include "leads/settings/_keyword_list.html" with keywords=negative empty="Optional. For example: hiring, job, vacancy." %}
+  </section>
+
+  <aside class="panel">
+    <h2>Search area</h2>
+    <form method="post" class="settings-form">
+      {% csrf_token %}<input type="hidden" name="form" value="profile">
+      {% for field in profile_form %}{% include "leads/settings/_field.html" %}{% endfor %}
+      <button class="button primary" type="submit">Save search area</button>
+    </form>
+  </aside>
+</div>
+{% endblock %}

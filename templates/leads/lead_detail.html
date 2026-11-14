@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.title }} · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<a class="back-link" href="{% url 'lead-list' %}">← Back to leads</a>
+<div class="detail-heading"><div><div class="badge-row"><span class="badge label-{{ lead.label }}">{{ lead.get_label_display }}</span><span class="badge">{{ lead.get_status_display }}</span></div><h1>{{ lead.title }}</h1><p class="muted">Discovered {{ lead.discovered_at|date:"j M Y, g:i A" }} from {{ lead.source.name }}</p></div>
+  {% if can_edit %}<div class="claim-actions">{% if not lead.claimed_by %}<form method="post" action="{% url 'lead-claim' lead.pk %}">{% csrf_token %}<button class="button primary">Claim lead</button></form>{% else %}<span class="claimed">Claimed by {{ lead.claimed_by.get_full_name|default:lead.claimed_by.username }}</span><form method="post" action="{% url 'lead-release' lead.pk %}">{% csrf_token %}<button class="button ghost">Release</button></form>{% endif %}</div>{% endif %}
+</div>
+
+<div class="detail-grid">
+  <section class="panel prose"><h2>Public request</h2><p>{{ lead.snippet|linebreaksbr|default:"No snippet was captured. Review the original source." }}</p><a class="button secondary" href="{{ lead.source_url }}" target="_blank" rel="noopener noreferrer">Open original source ↗</a><p class="safety-note">Verify that the post is current and invites contact before following up. Do not infer sensitive information.</p></section>
+  <aside class="panel facts"><h2>Lead details</h2><dl>
+    {% if lead.relevance_score is not None %}<div><dt>AI score</dt><dd>{{ lead.relevance_score }}/100</dd></div>{% endif %}
+    {% if lead.relevance_reason %}<div><dt>Why</dt><dd>{{ lead.relevance_reason }}</dd></div>{% endif %}
+    <div><dt>Service</dt><dd>{{ lead.service_category|default:"Uncategorised" }}</dd></div>
+    <div><dt>Lead type</dt><dd>{{ lead.get_lead_type_display }}</dd></div>
+    <div><dt>Location</dt><dd>{% if lead.location_unknown %}Unknown{% else %}{{ lead.suburb }} {{ lead.state }} {{ lead.postcode }}{% endif %}</dd></div>
+    <div><dt>Published</dt><dd>{{ lead.published_at|date:"j M Y, g:i A"|default:"Date unknown" }}</dd></div>
+    <div><dt>Name</dt><dd>{{ lead.public_name|default:"Not publicly listed" }}</dd></div>
+    <div><dt>Phone</dt><dd>{{ lead.public_phone|default:"Not publicly listed" }}</dd></div>
+    <div><dt>Email</dt><dd>{{ lead.public_email|default:"Not publicly listed" }}</dd></div>
+    <div><dt>Last checked</dt><dd>{{ lead.last_checked_at|date:"j M Y, g:i A" }}</dd></div>
+  </dl></aside>
+</div>
+
+{% if lead.duplicate_of %}<section class="alert-panel"><h2>Possible duplicate</h2><p>This may duplicate <a href="{% url 'lead-detail' lead.duplicate_of.pk %}">{{ lead.duplicate_of.title }}</a>. Review before contacting.</p></section>{% endif %}
+
+<div class="two-column">
+  <section class="panel"><h2>Update follow-up</h2>{% if can_edit %}<form method="post" action="{% url 'lead-update' lead.pk %}" class="stacked-form">{% csrf_token %}{{ form.as_p }}<button class="button primary" type="submit">Save update</button></form>{% else %}<p class="muted">Your account is read only.</p>{% endif %}</section>
+  <section class="panel"><h2>Activity</h2><div class="timeline">{% for activity in lead.activities.all %}<article><strong>{{ activity.action }}</strong><span>{{ activity.created_at|date:"j M Y, g:i A" }} · {{ activity.user|default:"System" }}</span>{% if activity.note %}<p>{{ activity.note|linebreaksbr }}</p>{% endif %}</article>{% empty %}<p class="muted">No activity recorded.</p>{% endfor %}</div></section>
+</div>
+{% endblock %}

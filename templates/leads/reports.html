@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Reports · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">Last 30 days</p><h1>Reports</h1><p class="muted">Lead volume and CRM outcomes. No quality score is exposed.</p></div><a class="button secondary" href="{% url 'lead-export' %}">Export all CSV</a></div>
+<section class="metric-grid"><article class="metric"><span>Total leads</span><strong>{{ total }}</strong></article><article class="metric"><span>Converted</span><strong>{{ converted }}</strong></article><article class="metric"><span>Conversion rate</span><strong>{{ conversion_rate }}%</strong></article></section>
+<div class="report-grid">
+  <section class="panel"><h2>By status</h2>{% for row in by_status %}<div class="bar-row"><span>{{ row.status|title }}</span><div class="bar"><i style="width:{% widthratio row.total total 100 %}%"></i></div><strong>{{ row.total }}</strong></div>{% empty %}<p class="muted">No data.</p>{% endfor %}</section>
+  <section class="panel"><h2>By source</h2>{% for row in by_source %}<div class="bar-row"><span>{{ row.source__name }}</span><div class="bar"><i style="width:{% widthratio row.total total 100 %}%"></i></div><strong>{{ row.total }}</strong></div>{% empty %}<p class="muted">No data.</p>{% endfor %}</section>
+  <section class="panel"><h2>By service</h2>{% for row in by_category %}<div class="bar-row"><span>{{ row.service_category__name|default:"Uncategorised" }}</span><div class="bar"><i style="width:{% widthratio row.total total 100 %}%"></i></div><strong>{{ row.total }}</strong></div>{% empty %}<p class="muted">No data.</p>{% endfor %}</section>
+</div>
+{% endblock %}

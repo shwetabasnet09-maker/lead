@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">Settings</p><h1>{% block heading %}{% endblock %}</h1><p class="muted">{% block intro %}{% endblock %}</p></div>{% block heading_action %}{% endblock %}</div>
+{% with current=request.resolver_match.url_name %}
+<nav class="tabs" aria-label="Settings sections">
+  <a href="{% url 'settings-sources' %}"{% if current == "settings-sources" or current == "settings-source-new" or current == "settings-source-edit" %} aria-current="page"{% endif %}>Scans &amp; sources</a>
+  <a href="{% url 'settings-search' %}"{% if current == "settings-search" %} aria-current="page"{% endif %}>Search area &amp; keywords</a>
+  <a href="{% url 'settings-services' %}"{% if current == "settings-services" or current == "settings-service-edit" %} aria-current="page"{% endif %}>Services</a>
+  <a href="{% url 'settings-team' %}"{% if current|slice:":13" == "settings-team" %} aria-current="page"{% endif %}>Team</a>
+</nav>
+{% endwith %}
+{% block settings_content %}{% endblock %}
+{% endblock %}

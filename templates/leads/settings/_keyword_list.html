@@ -1,0 +1,9 @@
+<ul class="chip-list">
+  {% for keyword in keywords %}
+  <li class="chip{% if not keyword.enabled %} off{% endif %}">
+    <span>{{ keyword.term }}{% if keyword.category %} <em>{{ keyword.category.name }}</em>{% endif %}{% if not keyword.enabled %} <em>paused</em>{% endif %}</span>
+    <form method="post" action="{% url 'settings-keyword-toggle' keyword.pk %}">{% csrf_token %}<button type="submit" class="chip-button">{{ keyword.enabled|yesno:"Pause,Resume" }}</button></form>
+    <form method="post" action="{% url 'settings-keyword-delete' keyword.pk %}" data-confirm="Remove {{ keyword.term }}?">{% csrf_token %}<button type="submit" class="chip-button" aria-label="Remove {{ keyword.term }}">✕</button></form>
+  </li>
+  {% empty %}<li class="muted small">{{ empty }}</li>{% endfor %}
+</ul>

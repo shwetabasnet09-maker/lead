@@ -1,0 +1,22 @@
+{% extends "leads/settings/_layout.html" %}
+{% block title %}{% if membership %}{{ membership.user.get_full_name|default:membership.user.username }}{% else %}Add a person{% endif %} · {{ APP_NAME }}{% endblock %}
+{% block heading %}{% if membership %}{{ membership.user.get_full_name|default:membership.user.username }}{% else %}Add a person{% endif %}{% endblock %}
+{% block intro %}{% if membership %}Change their details, role or password.{% else %}Create their sign-in. Share the username and password with them privately.{% endif %}{% endblock %}
+{% block settings_content %}
+<form method="post" class="settings-form" autocomplete="off">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="field-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <section class="panel">
+    <div class="field-grid">
+      {% include "leads/settings/_field.html" with field=form.first_name %}
+      {% include "leads/settings/_field.html" with field=form.last_name %}
+      {% include "leads/settings/_field.html" with field=form.email %}
+      {% include "leads/settings/_field.html" with field=form.role %}
+      {% include "leads/settings/_field.html" with field=form.username %}
+      {% include "leads/settings/_field.html" with field=form.password %}
+      {% include "leads/settings/_field.html" with field=form.active %}
+    </div>
+  </section>
+  <div class="form-actions"><button class="button primary" type="submit">Save</button><a class="button ghost" href="{% url 'settings-team' %}">Cancel</a></div>
+</form>
+{% endblock %}

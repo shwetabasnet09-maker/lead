@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">Overview</p><h1>Lead dashboard</h1><p class="muted">Review fresh public service requests and keep follow-ups moving.</p></div><div class="heading-actions">{% if can_manage %}{% if scan_running %}<span class="scan-pill" data-scan-status="{% url 'settings-scan-status' %}" data-running="true"><span class="spinner" aria-hidden="true"></span>Scanning…</span>{% else %}<form method="post" action="{% url 'settings-scan' %}">{% csrf_token %}<input type="hidden" name="next" value="{% url 'dashboard' %}"><button class="button secondary" type="submit">Scan now</button></form>{% endif %}{% endif %}<a class="button primary" href="{% url 'lead-list' %}">View all leads</a></div></div>
+
+<section class="metric-grid" aria-label="Lead summary">
+  <article class="metric"><span>New today</span><strong>{{ new_today }}</strong></article>
+  <article class="metric"><span>Likely requests, last {{ recent_days }} days</span><strong>{{ likely }}</strong></article>
+  <article class="metric"><span>Follow-ups due</span><strong>{{ follow_ups }}</strong></article>
+  <article class="metric"><span>Converted this month</span><strong>{{ converted_month }}</strong></article>
+</section>
+
+{% if not scan_running and not last_scan or not scan_running and last_scan.finished_at < scan_stale_before %}<section class="alert-panel"><h2>Leads are out of date</h2><p>{% if last_scan %}The last scan finished {{ last_scan.finished_at|timesince }} ago{% else %}No scan has run yet{% endif %}{% if newest_lead %}, and the newest lead was posted {{ newest_lead|timesince }} ago{% endif %}. Scans should run every 6 hours: check that the background worker or cron is running.{% if can_manage %} You can also press <strong>Scan now</strong>.{% endif %}</p></section>{% endif %}
+
+{% if source_errors %}<section class="alert-panel"><h2>Source attention required</h2>{% if can_manage %}<p><a href="{% url 'settings-sources' %}">Open Scans &amp; sources</a> to fix or switch these off.</p>{% endif %}<ul>{% for source in source_errors %}<li><strong>{{ source.name }}</strong>: {{ source.last_error|truncatechars:160 }}</li>{% endfor %}</ul></section>{% endif %}
+
+<div class="two-column">
+  <section class="panel">
+    <div class="panel-heading"><h2>Best leads, last {{ recent_days }} days</h2><a href="{% url 'lead-list' %}">See all</a></div>
+    <div class="lead-cards">
+      {% for lead in recent_leads %}
+        <a class="lead-card" href="{% url 'lead-detail' lead.pk %}">
+          <div><span class="badge label-{{ lead.label }}">{{ lead.get_label_display }}</span><span class="source">{{ lead.source.name }}</span>{% if lead.relevance_score is not None %}<span class="source">AI score {{ lead.relevance_score }}/100</span>{% endif %}</div>
+          <h3>{{ lead.title }}</h3>
+          <p>{{ lead.snippet|truncatechars:150 }}</p>
+          <div class="meta"><span>{{ lead.suburb|default:"Location unknown" }}{% if lead.state %}, {{ lead.state }}{% endif %}</span><span>Posted {{ lead.published_at|timesince }} ago</span></div>
+        </a>
+      {% empty %}<div class="empty"><h3>No relevant leads in the last {{ recent_days }} days</h3><p>{% if can_manage %}<a href="{% url 'settings-sources' %}">Check that a source is switched on</a>, or press Scan now.{% else %}Check that an approved source is enabled and running.{% endif %} Older leads are still under Leads, using the Posted filter.</p></div>{% endfor %}
+    </div>
+  </section>
+  <aside class="panel">
+    <div class="panel-heading"><h2>Latest scraper runs</h2>{% if can_manage %}<a href="{% url 'settings-sources' %}">Manage</a>{% endif %}</div>
+    <div class="run-list">
+      {% for run in recent_runs %}<div class="run-row"><div><strong>{{ run.source.name }}</strong><span>{{ run.started_at|date:"j M Y, g:i A" }}</span></div><span class="badge status-{{ run.status }}">{{ run.get_status_display }}</span></div>
+      {% empty %}<p class="muted">No scraper runs recorded.</p>{% endfor %}
+    </div>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "leads/settings/_layout.html" %}
+{% block title %}Team · {{ APP_NAME }}{% endblock %}
+{% block heading %}Team{% endblock %}
+{% block intro %}Who can sign in, and what they can do.{% endblock %}
+{% block heading_action %}<a class="button primary" href="{% url 'settings-team-new' %}">Add a person</a>{% endblock %}
+{% block settings_content %}
+<section class="panel">
+  <div class="member-list">
+    {% for member in members %}
+    <div class="member-row{% if not member.active %} off{% endif %}">
+      <span class="avatar" aria-hidden="true">{{ member.user.first_name|default:member.user.username|first|upper }}</span>
+      <div class="member-name"><strong>{{ member.user.get_full_name|default:member.user.username }}{% if member.user == user %} <em class="muted">(you)</em>{% endif %}</strong><span class="muted small">{{ member.user.email|default:member.user.username }}</span></div>
+      <span class="badge role-{{ member.role }}">{{ member.get_role_display }}</span>
+      <span class="muted small">{% if not member.active %}Cannot sign in{% elif member.user.last_login %}Last signed in {{ member.user.last_login|timesince }} ago{% else %}Never signed in{% endif %}</span>
+      {% if member.role != "owner" or is_owner %}<a class="button ghost small" href="{% url 'settings-team-member' member.pk %}">Edit</a>{% else %}<span></span>{% endif %}
+    </div>
+    {% empty %}<div class="empty"><p>No team members yet.</p></div>{% endfor %}
+  </div>
+</section>
+<section class="role-help">
+  <div><strong>Business owner</strong><p>Everything, including adding other owners.</p></div>
+  <div><strong>Manager</strong><p>Leads, plus all settings and the team.</p></div>
+  <div><strong>Employee</strong><p>Claims and follows up leads.</p></div>
+  <div><strong>Read only</strong><p>Can look, but not change anything.</p></div>
+</section>
+{% endblock %}

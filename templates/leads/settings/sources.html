@@ -1,0 +1,62 @@
+{% extends "leads/settings/_layout.html" %}
+{% block title %}Scans & sources · {{ APP_NAME }}{% endblock %}
+{% block heading %}Scans &amp; sources{% endblock %}
+{% block intro %}Choose where leads come from, and scan for new ones whenever you like.{% endblock %}
+{% block heading_action %}<a class="button secondary" href="{% url 'settings-source-new' %}">Add a source</a>{% endblock %}
+{% block settings_content %}
+<section class="scan-panel{% if running %} is-running{% endif %}" data-scan-status="{% url 'settings-scan-status' %}" data-running="{{ running|yesno:'true,false' }}" aria-live="polite">
+  {% if running %}
+    <div><span class="spinner" aria-hidden="true"></span><strong>Scanning now…</strong><p class="muted">This page refreshes by itself when the scan finishes. You can leave it and come back.</p></div>
+  {% else %}
+    <div><strong>{{ runnable_count }} source{{ runnable_count|pluralize }} switched on</strong><p class="muted">Scans run automatically every 6 hours{% if celery %} in the background{% endif %}. Start one now to check for new leads straight away.</p></div>
+    <form method="post" action="{% url 'settings-scan' %}">{% csrf_token %}<button class="button primary" type="submit"{% if not runnable_count %} disabled title="Turn on a source first"{% endif %}>Scan now</button></form>
+  {% endif %}
+</section>
+
+<section class="source-grid" aria-label="Sources">
+  {% for source in sources %}
+  <article class="panel source-card">
+    <div class="source-card-head">
+      <div><h2>{{ source.name }}</h2><span class="muted small">{{ source.get_source_type_display }}</span></div>
+      <span class="badge {{ source.state_class }}">{{ source.state_label }}</span>
+    </div>
+    <p class="muted small">{% if source.last_checked_at %}Last checked {{ source.last_checked_at|timesince }} ago{% else %}Not scanned yet{% endif %}</p>
+    {% if source.last_error and source.enabled %}<p class="source-error">{{ source.last_error|truncatechars:180 }}</p>{% endif %}
+    <div class="source-actions">
+      {% if source.state_label == "Needs review" %}
+        <a class="button primary small" href="{% url 'settings-source-edit' source.pk %}">Review</a>
+      {% else %}
+        <form method="post" action="{% url 'settings-source-toggle' source.pk %}">{% csrf_token %}
+          <button class="switch" type="submit" role="switch" aria-checked="{{ source.enabled|yesno:'true,false' }}" aria-label="Include {{ source.name }} in scans"><span></span></button>
+        </form>
+        {% if source.is_runnable and not running %}<form method="post" action="{% url 'settings-scan' %}">{% csrf_token %}<input type="hidden" name="source" value="{{ source.pk }}"><button class="button ghost small" type="submit">Scan this one</button></form>{% endif %}
+        <a class="button ghost small" href="{% url 'settings-source-edit' source.pk %}">Edit</a>
+      {% endif %}
+    </div>
+  </article>
+  {% empty %}
+  <div class="panel empty"><h3>No sources yet</h3><p>Add a source to start finding leads.</p></div>
+  {% endfor %}
+</section>
+
+<section class="panel">
+  <h2>Recent scans</h2>
+  <div class="table-wrap flat">
+    <table>
+      <thead><tr><th>Source</th><th>Started</th><th>Result</th><th>Checked</th><th>New leads</th><th>Duplicates</th></tr></thead>
+      <tbody>
+      {% for run in runs %}
+        <tr>
+          <td data-label="Source">{{ run.source.name }}</td>
+          <td data-label="Started">{{ run.started_at|date:"j M, g:i A" }}</td>
+          <td data-label="Result"><span class="badge status-{{ run.status }}">{{ run.get_status_display }}</span>{% if run.error %}<span class="muted small run-error">{{ run.error|truncatechars:90 }}</span>{% endif %}</td>
+          <td data-label="Checked">{{ run.records_seen }} post{{ run.records_seen|pluralize }}</td>
+          <td data-label="New leads"><strong>{{ run.leads_created }}</strong></td>
+          <td data-label="Duplicates">{{ run.duplicates_found }}</td>
+        </tr>
+      {% empty %}<tr><td colspan="6"><div class="empty"><p>No scans yet. Press Scan now to run the first one.</p></div></td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

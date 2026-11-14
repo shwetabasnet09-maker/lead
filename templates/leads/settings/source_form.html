@@ -1,0 +1,37 @@
+{% extends "leads/settings/_layout.html" %}
+{% block title %}{% if source %}{{ source.name }}{% else %}Add a source{% endif %} · {{ APP_NAME }}{% endblock %}
+{% block heading %}{% if source %}{{ source.name }}{% else %}Add a source{% endif %}{% endblock %}
+{% block intro %}Only scan sites that allow it. Check the site's robots.txt and terms before switching a source on.{% endblock %}
+{% block settings_content %}
+<form method="post" class="settings-form">
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="field-error">{{ form.non_field_errors }}</div>{% endif %}
+  <section class="panel">
+    <h2>Where to look</h2>
+    <div class="field-grid">
+      {% include "leads/settings/_field.html" with field=form.name %}
+      {% include "leads/settings/_field.html" with field=form.source_type %}
+      {% include "leads/settings/_field.html" with field=form.base_url %}
+      {% include "leads/settings/_field.html" with field=form.search_url_template %}
+      {% include "leads/settings/_field.html" with field=form.selectors wide=True %}
+    </div>
+  </section>
+  <section class="panel">
+    <h2>Permission check</h2>
+    <div class="field-grid">
+      {% include "leads/settings/_field.html" with field=form.robots_reviewed %}
+      {% include "leads/settings/_field.html" with field=form.terms_reviewed %}
+      {% include "leads/settings/_field.html" with field=form.review_status %}
+      {% include "leads/settings/_field.html" with field=form.enabled %}
+    </div>
+  </section>
+  <details class="panel">
+    <summary><h2>Speed limits</h2></summary>
+    <div class="field-grid">
+      {% include "leads/settings/_field.html" with field=form.request_delay_seconds %}
+      {% include "leads/settings/_field.html" with field=form.max_pages %}
+    </div>
+  </details>
+  <div class="form-actions"><button class="button primary" type="submit">Save</button><a class="button ghost" href="{% url 'settings-sources' %}">Cancel</a></div>
+</form>
+{% endblock %}

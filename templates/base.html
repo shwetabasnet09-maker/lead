@@ -1,0 +1,40 @@
+{% load static %}
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ APP_NAME }}{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'js/app.js' %}" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="{% url 'dashboard' %}"><span class="brand-mark">NL</span><span>{{ APP_NAME }}</span></a>
+    {% if user.is_authenticated %}
+      <button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav" data-menu-button>Menu</button>
+      <nav id="primary-nav" aria-label="Primary navigation">
+        {% with current=request.resolver_match.url_name %}
+        <a href="{% url 'dashboard' %}"{% if current == "dashboard" %} aria-current="page"{% endif %}>Dashboard</a>
+        <a href="{% url 'lead-list' %}"{% if current == "lead-list" or current == "lead-detail" %} aria-current="page"{% endif %}>Leads</a>
+        <a href="{% url 'ai-search' %}"{% if current == "ai-search" %} aria-current="page"{% endif %}>AI search</a>
+        <a href="{% url 'reports' %}"{% if current == "reports" %} aria-current="page"{% endif %}>Reports</a>
+        <a href="{% url 'notifications' %}"{% if current == "notifications" %} aria-current="page"{% endif %}>Notifications{% if unread_notification_count %}<span class="count">{{ unread_notification_count }}</span>{% endif %}</a>
+        {% if can_manage %}<a href="{% url 'settings-sources' %}"{% if current|slice:":8" == "settings" %} aria-current="page"{% endif %}>Settings</a>{% endif %}
+        {% endwith %}
+        <form action="{% url 'logout' %}" method="post" class="inline-form">{% csrf_token %}<button class="link-button" type="submit">Sign out</button></form>
+      </nav>
+    {% endif %}
+  </header>
+  {% if messages %}
+    <div class="messages" aria-live="polite">
+      {% for message in messages %}<div class="message {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}
+    </div>
+  {% endif %}
+  <main id="main" class="container">
+    {% block content %}{% endblock %}
+  </main>
+  <footer><span>{{ APP_NAME }}</span><span>Public-source lead intelligence · Human review required</span></footer>
+</body>
+</html>

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}AI search · {{ APP_NAME }}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">{{ provider_name }}</p><h1>AI search</h1><p class="muted">Ask {{ provider_name }} to search the web for public requests from the last {{ days }} days. Results are shown only to you and are not saved.</p></div></div>
+
+{% if not configured %}
+<section class="alert-panel"><h2>AI search is not set up</h2><p>Add <code>GROQ_API_KEY</code> or <code>GEMINI_API_KEY</code> to the application's <code>.env</code> file, then restart the server.</p></section>
+{% elif can_edit %}
+<form method="post" class="filter-bar">
+  {% csrf_token %}
+  {% for field in form %}<div class="filter-field"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{% for error in field.errors %}<p class="field-error">{{ error }}</p>{% endfor %}</div>{% endfor %}
+  <datalist id="service-suggestions">{% for service in services %}<option value="{{ service }}"></option>{% endfor %}</datalist>
+  <div class="filter-actions"><button class="button primary" type="submit">Search</button></div>
+</form>
+{% else %}
+<p class="muted">Your account is read only.</p>
+{% endif %}
+
+{% if result %}
+<section class="panel prose">
+  <h2>{{ provider_name }}'s answer</h2>
+  <p style="white-space:pre-wrap">{{ result.text }}</p>
+  {% if result.citations %}<h2>Sources</h2><ul>{% for citation in result.citations %}<li><a href="{{ citation.url }}" target="_blank" rel="noopener noreferrer">{{ citation.title }}</a></li>{% endfor %}</ul>{% endif %}
+  {% if result.suggestions_html %}<div>{{ result.suggestions_html|safe }}</div>{% endif %}
+  <p class="safety-note">AI answers can be wrong. Open the original post and check its date and that it invites contact before following up.</p>
+</section>
+{% endif %}
+{% endblock %}

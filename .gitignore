@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.venv/
+.deps/
+venv/
+staticfiles/
+media/
+backups/
+.scraper.lock
+.pytest_cache/
+htmlcov/
+.coverage
+*.log
+.celerybeat-schedule*
+logs/

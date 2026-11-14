@@ -1,0 +1,27 @@
+{% extends "leads/settings/_layout.html" %}
+{% block title %}Services · {{ APP_NAME }}{% endblock %}
+{% block heading %}Services{% endblock %}
+{% block intro %}The services you offer. Leads are sorted into these, and the other words help match posts that phrase things differently.{% endblock %}
+{% block settings_content %}
+<div class="two-column">
+  <section class="panel">
+    <h2>Your services</h2>
+    <div class="service-list">
+      {% for category in categories %}
+      <a class="service-row{% if not category.active %} off{% endif %}{% if editing and editing.pk == category.pk %} selected{% endif %}" href="{% url 'settings-service-edit' category.pk %}">
+        <div><strong>{{ category.name }}</strong>{% if category.synonyms %}<span class="muted small">{{ category.terms|slice:"1:"|join:", "|truncatechars:110 }}</span>{% endif %}</div>
+        <span class="badge{% if category.active %} status-success{% endif %}">{{ category.active|yesno:"In use,Not used" }}</span>
+      </a>
+      {% empty %}<div class="empty"><p>No services yet. Add the first one.</p></div>{% endfor %}
+    </div>
+  </section>
+  <aside class="panel">
+    <h2>{% if editing %}Edit {{ editing.name }}{% else %}Add a service{% endif %}</h2>
+    <form method="post" class="settings-form">
+      {% csrf_token %}
+      {% for field in form %}{% include "leads/settings/_field.html" %}{% endfor %}
+      <div class="form-actions"><button class="button primary" type="submit">Save</button>{% if editing %}<a class="button ghost" href="{% url 'settings-services' %}">Cancel</a>{% endif %}</div>
+    </form>
+  </aside>
+</div>
+{% endblock %}
