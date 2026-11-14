@@ -143,16 +143,26 @@ class StartScanTests(TestCase):
         self.assertEqual(popen.call_args.args[0][-3:], ["run_scrapers", "--source", "3"])
 
     @override_settings(CELERY_BROKER_URL="redis://127.0.0.1:6379/0")
+    @mock.patch("leads.jobs.worker_available", return_value=True)
     @mock.patch("leads.tasks.run_scan.delay")
-    def test_with_redis_queues_on_celery(self, delay):
+    def test_with_redis_queues_on_celery(self, delay, _):
         self.assertEqual(jobs.start_scan(), "celery")
         delay.assert_called_once_with(None)
 
     @override_settings(CELERY_BROKER_URL="redis://127.0.0.1:6379/0")
     @mock.patch("leads.jobs.subprocess.Popen")
-    @mock.patch("leads.tasks.run_scan.delay", side_effect=ConnectionError("down"))
+    @mock.patch("leads.jobs.worker_available", side_effect=ConnectionError("down"))
     def test_falls_back_when_redis_is_down(self, _, popen):
         self.assertEqual(jobs.start_scan(), "process")
+        popen.assert_called_once()
+
+    @override_settings(CELERY_BROKER_URL="redis://127.0.0.1:6379/0")
+    @mock.patch("leads.jobs.subprocess.Popen")
+    @mock.patch("leads.tasks.run_scan.delay")
+    @mock.patch("leads.jobs.worker_available", return_value=False)
+    def test_falls_back_when_no_worker_is_running(self, _, delay, popen):
+        self.assertEqual(jobs.start_scan(), "process")
+        delay.assert_not_called()
         popen.assert_called_once()
 
     @mock.patch("leads.jobs.scan_is_running", return_value=True)

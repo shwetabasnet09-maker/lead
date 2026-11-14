@@ -45,9 +45,18 @@ def start_scan(source_id: int | None = None) -> str:
         from .tasks import run_scan
 
         try:
-            run_scan.delay(source_id)
-            return "celery"
+            # A job queued with no worker running would wait in Redis forever, so check one is listening.
+            if worker_available():
+                run_scan.delay(source_id)
+                return "celery"
+            logger.error("No Celery worker answered, so the scan is starting as a separate process. Check: systemctl status ndis-worker")
         except Exception:
             logger.exception("Could not reach Redis, so the scan is starting as a separate process instead")
     _start_process(source_id)
     return "process"
+
+
+def worker_available() -> bool:
+    from ndis_lead_finder.celery import app
+
+    return bool(app.control.ping(timeout=1.0))
