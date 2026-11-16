@@ -2,6 +2,7 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
+from leads.keyword_defaults import NEGATIVE_KEYWORDS, POSITIVE_KEYWORDS
 from leads.models import Keyword, Membership, Organisation, SearchProfile, ServiceCategory, Source
 
 
@@ -44,23 +45,6 @@ CATEGORIES = {
     "Plan management": ["plan manager", "plan management"],
     "Home modifications": ["home modification", "accessible home modification"],
     "Other service request": [],
-}
-
-# Exact labels supplied by the business. These are kept as generated search
-# keywords even when the classifier stores the lead under a broader category.
-SERVICE_SEARCH_TERMS = {
-    "Supported Independent Living (SIL)": "Supported Independent Living",
-    "Short-Term Accommodation (STA)": "Respite / Short-Term Accommodation",
-    "Assistance with Daily Living": "Home care / in-home support",
-    "Community Participation": "Community participation",
-    "Life Skills Development": "Life skills development",
-    "Travel and Transport": "Transport",
-    "Support Coordination": "Support coordination",
-    "Nursing and Personal Care": "Nursing",
-    "House Cleaning / Home Help": "Domestic assistance / cleaning",
-    "Occupational Therapy": "Occupational therapy",
-    "Behaviour Support": "Behaviour support",
-    "Therapy Assistant": "Therapy assistant",
 }
 
 # Free official APIs. Bluesky runs one search per service through {service} (see
@@ -128,19 +112,15 @@ class Command(BaseCommand):
                 if merged != existing:
                     category.synonyms = "\n".join(merged)
                     category.save(update_fields=["synonyms", "updated_at"])
-            for term in synonyms[:3]:
-                Keyword.objects.get_or_create(profile=profile, term=term, kind=Keyword.Kind.POSITIVE, defaults={"category": category, "generated": True})
-        for term, category_name in SERVICE_SEARCH_TERMS.items():
-            keyword, created = Keyword.objects.get_or_create(
-                profile=profile,
-                term=term,
-                kind=Keyword.Kind.POSITIVE,
-                defaults={"category": categories[category_name], "generated": True},
-            )
-            if not created and keyword.generated and keyword.category != categories[category_name]:
-                keyword.category = categories[category_name]
-                keyword.save(update_fields=["category", "updated_at"])
-        for term in ["job", "vacancy", "hiring", "course", "training", "we provide", "our services"]:
+        for category_name, terms in POSITIVE_KEYWORDS.items():
+            for term in terms:
+                Keyword.objects.get_or_create(
+                    profile=profile,
+                    term=term,
+                    kind=Keyword.Kind.POSITIVE,
+                    defaults={"category": categories.get(category_name), "generated": True},
+                )
+        for term in NEGATIVE_KEYWORDS:
             Keyword.objects.get_or_create(profile=profile, term=term, kind=Keyword.Kind.NEGATIVE)
         for name, url in [
             ("MyCareSpace reference", "https://mycarespace.com.au/"),
