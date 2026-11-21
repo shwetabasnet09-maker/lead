@@ -166,7 +166,11 @@ def fetch_brave(source: Source, query: str, freshness_days: int = 7) -> list[Scr
     response = _session().get(
         urljoin(source.base_url, "/res/v1/web/search"),
         params={"q": query, "country": "AU", "count": 20, "freshness": _brave_freshness(freshness_days)},
-        headers={"Accept": "application/json", "X-Subscription-Token": settings.BRAVE_API_KEY},
+        headers={
+            "Accept": "application/json",
+            "Cache-Control": "no-cache",
+            "X-Subscription-Token": settings.BRAVE_API_KEY,
+        },
         timeout=settings.SCRAPER_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
