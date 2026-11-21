@@ -143,9 +143,12 @@ SELENIUM_ENABLED = env_bool("SELENIUM_ENABLED", False)
 BRAVE_API_KEY = os.getenv("BRAVE_API_KEY", "")
 BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE", "")
 BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD", "")
+# AI qualification of every new lead (intent, summary, 0-100 score, priority). Uses Groq,
+# or Gemini when no Groq key is set. Set to false to sort leads by the keyword rules alone.
+AI_LEAD_SCORING = env_bool("AI_LEAD_SCORING", True)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
-GEMINI_MIN_RELEVANCE = int(os.getenv("GEMINI_MIN_RELEVANCE", "60"))
+GEMINI_MIN_RELEVANCE = int(os.getenv("GEMINI_MIN_RELEVANCE", "50"))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 BACKUP_DIR = Path(os.getenv("BACKUP_DIR", str(BASE_DIR / "backups")))

@@ -86,7 +86,14 @@ def judge_record(record: ScrapedRecord, profile: SearchProfile) -> Judgement | N
         },
     }
     try:
-        data = _chat(body, JUDGE_TIMEOUT_SECONDS)
+        try:
+            data = _chat(body, JUDGE_TIMEOUT_SECONDS)
+        except GroqError as exc:
+            # The model occasionally writes a value outside the schema and Groq rejects it.
+            # A second attempt usually succeeds.
+            if "does not match the expected schema" not in str(exc):
+                raise
+            data = _chat(body, JUDGE_TIMEOUT_SECONDS)
         return _validated_judgement(json.loads(data["choices"][0]["message"]["content"]), categories)
     except (GroqError, ValueError, TypeError, AttributeError, KeyError, IndexError) as exc:
         # Do not log the post itself: it can describe a real person.

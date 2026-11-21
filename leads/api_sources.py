@@ -49,6 +49,18 @@ def _is_service_request(record: ScrapedRecord, keywords: list[str]) -> bool:
     return _contains(text, INTENT_TERMS) and _contains_word(text, keywords)
 
 
+def service_keywords(profile: SearchProfile) -> list[str]:
+    """Every term that names a service: the profile's keywords and each category's synonyms."""
+    keywords = list(profile.keywords.filter(kind=Keyword.Kind.POSITIVE, enabled=True).values_list("term", flat=True))
+    for category in ServiceCategory.objects.filter(active=True):
+        keywords.extend(category.terms())
+    return keywords
+
+
+def is_service_request(record: ScrapedRecord, keywords: list[str]) -> bool:
+    return _is_service_request(record, keywords)
+
+
 def api_requests(source: Source, profile: SearchProfile) -> list[str]:
     """Expand the source's configured hashtags or queries into individual API requests."""
     config = source.selectors or {}
@@ -182,9 +194,7 @@ def fetch_api_source(source: Source, profile: SearchProfile):
     if not source.is_runnable:
         raise ScraperError("Source is disabled or has not completed permission review")
     token = _bluesky_token(source) if source.source_type == Source.SourceType.BLUESKY else ""
-    keywords = list(profile.keywords.filter(kind=Keyword.Kind.POSITIVE, enabled=True).values_list("term", flat=True))
-    for category in ServiceCategory.objects.filter(active=True):
-        keywords.extend(category.terms())
+    keywords = service_keywords(profile)
     for item in api_requests(source, profile):
         if source.source_type == Source.SourceType.MASTODON:
             records = fetch_mastodon(source, item)

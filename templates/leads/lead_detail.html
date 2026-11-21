@@ -2,15 +2,18 @@
 {% block title %}{{ lead.title }} · {{ APP_NAME }}{% endblock %}
 {% block content %}
 <a class="back-link" href="{% url 'lead-list' %}">← Back to leads</a>
-<div class="detail-heading"><div><div class="badge-row"><span class="badge label-{{ lead.label }}">{{ lead.get_label_display }}</span><span class="badge">{{ lead.get_status_display }}</span></div><h1>{{ lead.title }}</h1><p class="muted">Discovered {{ lead.discovered_at|date:"j M Y, g:i A" }} from {{ lead.source.name }}</p></div>
+<div class="detail-heading"><div><div class="badge-row">{% if lead.priority %}<span class="badge priority-{{ lead.priority }}">{{ lead.get_priority_display }}</span>{% endif %}<span class="badge label-{{ lead.label }}">{{ lead.get_label_display }}</span><span class="badge">{{ lead.get_status_display }}</span></div><h1>{{ lead.title }}</h1><p class="muted">Discovered {{ lead.discovered_at|date:"j M Y, g:i A" }} from {{ lead.source.name }}</p></div>
   {% if can_edit %}<div class="claim-actions">{% if not lead.claimed_by %}<form method="post" action="{% url 'lead-claim' lead.pk %}">{% csrf_token %}<button class="button primary">Claim lead</button></form>{% else %}<span class="claimed">Claimed by {{ lead.claimed_by.get_full_name|default:lead.claimed_by.username }}</span><form method="post" action="{% url 'lead-release' lead.pk %}">{% csrf_token %}<button class="button ghost">Release</button></form>{% endif %}</div>{% endif %}
 </div>
 
 <div class="detail-grid">
-  <section class="panel prose"><h2>Public request</h2><p>{{ lead.snippet|linebreaksbr|default:"No snippet was captured. Review the original source." }}</p><a class="button secondary" href="{{ lead.source_url }}" target="_blank" rel="noopener noreferrer">Open original source ↗</a><p class="safety-note">Verify that the post is current and invites contact before following up. Do not infer sensitive information.</p></section>
+  <section class="panel prose"><h2>Public request</h2><p>{{ lead.snippet|linebreaksbr|default:"No snippet was captured. Review the original source." }}</p><a class="button secondary" href="{{ lead.source_url }}" target="_blank" rel="noopener noreferrer">View original post ↗</a><p class="safety-note">Verify that the post is current and invites contact before following up. Do not infer sensitive information.</p></section>
   <aside class="panel facts"><h2>Lead details</h2><dl>
-    {% if lead.relevance_score is not None %}<div><dt>AI score</dt><dd>{{ lead.relevance_score }}/100</dd></div>{% endif %}
+    {% if lead.ai_summary %}<div><dt>AI summary</dt><dd>{{ lead.ai_summary }}</dd></div>{% endif %}
+    {% if lead.intent != "unknown" %}<div><dt>Intent</dt><dd>{{ lead.get_intent_display }}</dd></div>{% endif %}
+    {% if lead.relevance_score is not None %}<div><dt>AI score</dt><dd>{{ lead.relevance_score }}/100 · {{ lead.get_priority_display }}</dd></div>{% endif %}
     {% if lead.relevance_reason %}<div><dt>Why</dt><dd>{{ lead.relevance_reason }}</dd></div>{% endif %}
+    <div><dt>Coverage</dt><dd>{{ lead.get_coverage_display }}</dd></div>
     <div><dt>Service</dt><dd>{{ lead.service_category|default:"Uncategorised" }}</dd></div>
     <div><dt>Lead type</dt><dd>{{ lead.get_lead_type_display }}</dd></div>
     <div><dt>Location</dt><dd>{% if lead.location_unknown %}Unknown{% else %}{{ lead.suburb }} {{ lead.state }} {{ lead.postcode }}{% endif %}</dd></div>

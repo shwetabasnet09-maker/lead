@@ -2,7 +2,13 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
-from leads.keyword_defaults import NEGATIVE_KEYWORDS, POSITIVE_KEYWORDS
+from leads.keyword_defaults import (
+    BLUESKY_QUERIES,
+    NEGATIVE_KEYWORDS,
+    POSITIVE_KEYWORDS,
+    WEB_SEARCH_SOURCE,
+    WEB_SEARCH_SOURCE_NAME,
+)
 from leads.models import Keyword, Membership, Organisation, SearchProfile, ServiceCategory, Source
 
 
@@ -61,7 +67,7 @@ API_SOURCES = [
         "Bluesky post search",
         Source.SourceType.BLUESKY,
         "https://bsky.social/",
-        {"queries": ['ndis "{service}"', "ndis looking for", "ndis need support worker", "ndis recommend provider"]},
+        {"queries": BLUESKY_QUERIES},
     ),
     (
         "Brave web search",
@@ -141,6 +147,18 @@ class Command(BaseCommand):
                 source.selectors = config
                 source.save(update_fields=["selectors", "updated_at"])
                 self.stdout.write(f"Refreshed queries for {name}.")
+        Source.objects.get_or_create(
+            name=WEB_SEARCH_SOURCE_NAME,
+            defaults={
+                "source_type": Source.SourceType.SELENIUM,
+                "base_url": WEB_SEARCH_SOURCE["base_url"],
+                "search_url_template": WEB_SEARCH_SOURCE["search_url_template"],
+                "selectors": WEB_SEARCH_SOURCE["selectors"],
+                "robots_reviewed": True,
+                "request_delay_seconds": 5,
+                "enabled": False,
+            },
+        )
         user = User.objects.filter(username=options["username"]).first()
         if user:
             Membership.objects.get_or_create(organisation=organisation, user=user, defaults={"role": Membership.Role.OWNER})

@@ -95,6 +95,12 @@ def _filtered_leads(request):
             )
         if data["status"]:
             queryset = queryset.filter(status=data["status"])
+        else:
+            # Posts the AI rejected are kept for audit, but only shown when asked for.
+            queryset = queryset.exclude(status=Lead.Status.DISQUALIFIED)
+        for field in ("priority", "intent", "coverage", "source"):
+            if data[field]:
+                queryset = queryset.filter(**{field: data[field]})
         if data["label"]:
             queryset = queryset.filter(label=data["label"])
         if data["claimed"] == "mine":

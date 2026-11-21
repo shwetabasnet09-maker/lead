@@ -12,7 +12,7 @@
     <tbody>
     {% for lead in page_obj %}
       <tr>
-        <td data-label="Lead"><a class="table-title" href="{% url 'lead-detail' lead.pk %}">{{ lead.title }}</a><span class="badge label-{{ lead.label }}">{{ lead.get_label_display }}</span>{% if lead.relevance_score is not None %} <span class="badge">AI score {{ lead.relevance_score }}/100</span>{% endif %}</td>
+        <td data-label="Lead"><a class="table-title" href="{% url 'lead-detail' lead.pk %}">{{ lead.title }}</a>{% if lead.priority %}<span class="badge priority-{{ lead.priority }}">{{ lead.get_priority_display }}</span> {% endif %}<span class="badge label-{{ lead.label }}">{{ lead.get_label_display }}</span>{% if lead.relevance_score is not None %} <span class="badge">AI score {{ lead.relevance_score }}/100</span>{% endif %}{% if lead.coverage == "outside" %} <span class="badge">Outside coverage</span>{% endif %}{% if lead.ai_summary %}<span class="muted lead-summary">{{ lead.ai_summary }}</span>{% endif %}</td>
         <td data-label="Service">{{ lead.service_category|default:"Uncategorised" }}</td>
         <td data-label="Location">{% if lead.location_unknown %}Unknown{% else %}{{ lead.suburb }} {{ lead.state }} {{ lead.postcode }}{% endif %}</td>
         <td data-label="Source">{{ lead.source.name }}</td>

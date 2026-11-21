@@ -98,7 +98,7 @@ class GroqSearchPageTests(BaseCase):
         self.assertContains(response, "try again later")
 
 
-@override_settings(GROQ_API_KEY="groq-test-key", GROQ_MODEL="openai/gpt-oss-20b")
+@override_settings(GROQ_API_KEY="groq-test-key", GROQ_MODEL="openai/gpt-oss-20b", AI_LEAD_SCORING=True)
 class GroqScoringTests(BaseCase):
     def test_score_is_stored_and_request_is_strict(self):
         with patch("leads.groq.requests.post", return_value=groq_response()) as post:

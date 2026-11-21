@@ -117,7 +117,7 @@ class ViewFreshnessTests(BaseCase):
         self.assertEqual(titles({"posted": "all"}), {"new", "old", "old-claimed"})
 
 
-@override_settings(GEMINI_API_KEY="test-key", GEMINI_MIN_RELEVANCE=60)
+@override_settings(GEMINI_API_KEY="test-key", GEMINI_MIN_RELEVANCE=60, AI_LEAD_SCORING=True)
 class ScoringTests(BaseCase):
     def test_score_and_details_are_stored(self):
         with patch("leads.gemini.requests.post", return_value=judge_response()) as post:

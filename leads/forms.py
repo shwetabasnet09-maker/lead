@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Lead
+from .models import Lead, Source
 
 
 class LeadUpdateForm(forms.ModelForm):
@@ -20,6 +20,10 @@ class LeadFilterForm(forms.Form):
     q = forms.CharField(required=False, label="Search", widget=forms.TextInput(attrs={"placeholder": "Title, snippet, location or contact"}))
     status = forms.ChoiceField(required=False, choices=[("", "All statuses"), *Lead.Status.choices])
     label = forms.ChoiceField(required=False, choices=[("", "All labels"), *Lead.Label.choices])
+    priority = forms.ChoiceField(required=False, choices=[("", "All priorities"), *Lead.Priority.choices])
+    intent = forms.ChoiceField(required=False, choices=[("", "All intents"), *Lead.Intent.choices])
+    coverage = forms.ChoiceField(required=False, choices=[("", "Any location"), *Lead.Coverage.choices])
+    source = forms.ModelChoiceField(required=False, queryset=Source.objects.none(), empty_label="All sources")
     claimed = forms.ChoiceField(required=False, choices=[("", "All leads"), ("mine", "Claimed by me"), ("unclaimed", "Unclaimed")])
     date_from = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     date_to = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
@@ -28,6 +32,7 @@ class LeadFilterForm(forms.Form):
     def __init__(self, *args, recent_days=7, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["posted"].choices = [("recent", f"Last {recent_days} days"), ("all", "Any time")]
+        self.fields["source"].queryset = Source.objects.order_by("name")
 
 
 class AILeadSearchForm(forms.Form):

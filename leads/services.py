@@ -13,7 +13,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from . import gemini, groq
-from .api_sources import API_SOURCE_TYPES, fetch_api_source
+from .api_sources import API_SOURCE_TYPES, api_requests, fetch_api_source, is_service_request, service_keywords
 from .classifier import classify_record, find_possible_duplicate
 from .models import (
     AIConfiguration,
@@ -23,9 +23,10 @@ from .models import (
     Organisation,
     ScrapeRun,
     SearchProfile,
+    ServiceCategory,
     Source,
 )
-from .scrapers import ScrapedRecord, build_search_url, polite_pause, scrape_source
+from .scrapers import ScrapedRecord, build_search_url, open_browser, polite_pause, scrape_source
 
 
 def default_organisation() -> Organisation:
@@ -61,6 +62,9 @@ def _apply_judgement(values: dict, judgement: gemini.Judgement) -> None:
         lead_type=judgement.lead_type,
         relevance_score=judgement.score,
         relevance_reason=judgement.reason,
+        intent=judgement.intent,
+        priority=Lead.priority_for(judgement.score),
+        ai_summary=judgement.summary,
         suburb=judgement.suburb or values["suburb"],
         state=judgement.state or values["state"],
         postcode=judgement.postcode or values["postcode"],
@@ -68,15 +72,43 @@ def _apply_judgement(values: dict, judgement: gemini.Judgement) -> None:
     values["location_unknown"] = not any((values["suburb"], values["state"], values["postcode"]))
 
 
-def _downgrade_if_unproven(values: dict, record: ScrapedRecord, profile: SearchProfile) -> None:
-    """A lead is only "likely" if we can show that it is recent and in the service area."""
+def coverage_for(values: dict, profile: SearchProfile) -> str:
+    """Inside if the suburb is a listed location or the state is served; outside if another state."""
+    service_states = {state.strip().upper() for state in profile.states.split(",") if state.strip()}
+    locations = {location.lower() for location in profile.location_terms()}
+    if values.get("suburb") and values["suburb"].lower() in locations:
+        return Lead.Coverage.INSIDE
+    if values.get("state"):
+        return Lead.Coverage.INSIDE if not service_states or values["state"] in service_states else Lead.Coverage.OUTSIDE
+    return Lead.Coverage.UNKNOWN
+
+
+def initial_status(values: dict) -> str:
+    """Hot and warm client requests skip the review queue; what the AI rejected is kept for audit."""
+    priority = values.get("priority")
+    if not priority:
+        return Lead.Status.NEW
+    if values["label"] == Lead.Label.LIKELY and priority in (Lead.Priority.HOT, Lead.Priority.WARM):
+        return Lead.Status.AI_QUALIFIED
+    if priority == Lead.Priority.IRRELEVANT or values["label"] in (Lead.Label.JOB, Lead.Label.PROVIDER_AD):
+        return Lead.Status.DISQUALIFIED
+    return Lead.Status.NEW
+
+
+def _downgrade_if_unproven(values: dict, record: ScrapedRecord, profile: SearchProfile, source: Source | None = None) -> None:
+    """A lead is only "likely" if we can show that it is recent and in the service area.
+
+    Web search results carry no post date. A source can opt in with "allow_undated" so
+    its matches stay "likely", flagged for staff to check the date before contacting.
+    """
     if values["label"] != Lead.Label.LIKELY:
         return
-    service_states = {state.strip().upper() for state in profile.states.split(",") if state.strip()}
-    if not record.published_at:
-        values.update(label=Lead.Label.REVIEW, relevance_reason=values.get("relevance_reason") or "Post date unknown")
-    elif service_states and values["state"] and values["state"] not in service_states and not values["suburb"]:
+    if coverage_for(values, profile) == Lead.Coverage.OUTSIDE:
         values.update(label=Lead.Label.REVIEW, relevance_reason=values.get("relevance_reason") or "Outside the service area")
+    elif not record.published_at and source is not None and (source.selectors or {}).get("allow_undated"):
+        values["relevance_reason"] = values.get("relevance_reason") or "Post date unknown: check it is recent before contacting"
+    elif not record.published_at:
+        values.update(label=Lead.Label.REVIEW, relevance_reason=values.get("relevance_reason") or "Post date unknown")
 
 
 def optionally_enrich_with_ai(organisation: Organisation, record: ScrapedRecord, classification: dict) -> dict:
@@ -119,15 +151,19 @@ def optionally_enrich_with_ai(organisation: Organisation, record: ScrapedRecord,
     return classification
 
 
-def ingest_record(source: Source, profile: SearchProfile, record: ScrapedRecord) -> tuple[Lead, bool, bool]:
-    organisation = profile.organisation
-    # Checked first so that a post seen on every run is not sent to the AI every time.
-    existing = Lead.objects.filter(source=source, source_url=record.url).first()
-    if existing:
-        existing.last_checked_at = timezone.now()
-        existing.source_available = True
-        existing.save(update_fields=["last_checked_at", "source_available", "updated_at"])
-        return existing, False, bool(existing.duplicate_of_id)
+def ai_scorer():
+    """The AI that qualifies leads, or None. Groq goes first: Gemini may be set up only for the AI search page."""
+    if not settings.AI_LEAD_SCORING:
+        return None
+    return next((provider for provider in (groq, gemini) if provider.is_configured()), None)
+
+
+def qualify_record(source: Source, profile: SearchProfile, record: ScrapedRecord) -> tuple[dict, ServiceCategory | None]:
+    """Keyword rules first, then the AI's reading of the post when one is configured.
+
+    Returns the lead field values (label, intent, score, priority, summary, location,
+    coverage and starting status) and the service category.
+    """
     classified = classify_record(record.title, record.snippet, profile, record.published_at)
     values = {
         "label": classified.label,
@@ -138,16 +174,30 @@ def ingest_record(source: Source, profile: SearchProfile, record: ScrapedRecord)
         "location_unknown": classified.location_unknown,
     }
     category = classified.category
-    # Groq goes first when both are set: Gemini may be set up only for the AI search page.
-    scorer = next((provider for provider in (groq, gemini) if provider.is_configured()), None)
+    scorer = ai_scorer()
     if scorer:
         judgement = scorer.judge_record(record, profile)
         if judgement:
             _apply_judgement(values, judgement)
             category = judgement.category or category
-    else:
-        values = optionally_enrich_with_ai(organisation, record, values)
-    _downgrade_if_unproven(values, record, profile)
+    elif settings.AI_LEAD_SCORING:
+        values = optionally_enrich_with_ai(profile.organisation, record, values)
+    _downgrade_if_unproven(values, record, profile, source)
+    values["coverage"] = coverage_for(values, profile)
+    values["status"] = initial_status(values)
+    return values, category
+
+
+def ingest_record(source: Source, profile: SearchProfile, record: ScrapedRecord) -> tuple[Lead, bool, bool]:
+    organisation = profile.organisation
+    # Checked first so that a post seen on every run is not sent to the AI every time.
+    existing = Lead.objects.filter(source=source, source_url=record.url).first()
+    if existing:
+        existing.last_checked_at = timezone.now()
+        existing.source_available = True
+        existing.save(update_fields=["last_checked_at", "source_available", "updated_at"])
+        return existing, False, bool(existing.duplicate_of_id)
+    values, category = qualify_record(source, profile, record)
     duplicate = find_possible_duplicate(record.title, record.snippet, record.public_phone, record.public_email)
     content_hash = Lead.make_hash(record.title, record.snippet, record.public_phone, record.public_email)
     defaults = {
@@ -206,11 +256,32 @@ def _run_api_source(source: Source, profile: SearchProfile, run: ScrapeRun):
         polite_pause(source)
 
 
+def _run_selenium_search(source: Source, profile: SearchProfile, run: ScrapeRun):
+    """Run the source's own search queries in one browser.
+
+    Only results with both request language ("looking for", "need", "recommend") and a
+    service keyword are kept, as for the API sources.
+    """
+    keywords = service_keywords(profile)
+    driver = open_browser()
+    try:
+        for query in api_requests(source, profile):
+            records = scrape_source(source, build_search_url(source, query, "", 1), driver)
+            _ingest_fresh_records(source, profile, run, [record for record in records if is_service_request(record, keywords)])
+            polite_pause(source)
+    finally:
+        driver.quit()
+
+
 def run_source_profile(source: Source, profile: SearchProfile) -> ScrapeRun:
     run = ScrapeRun.objects.create(source=source, profile=profile)
     try:
-        if source.source_type in API_SOURCE_TYPES:
-            _run_api_source(source, profile, run)
+        selenium_search = source.source_type == Source.SourceType.SELENIUM and (source.selectors or {}).get("queries")
+        if source.source_type in API_SOURCE_TYPES or selenium_search:
+            if selenium_search:
+                _run_selenium_search(source, profile, run)
+            else:
+                _run_api_source(source, profile, run)
             run.status = ScrapeRun.Status.SUCCESS
             source.last_error = ""
             return run

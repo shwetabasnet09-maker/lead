@@ -182,17 +182,43 @@ class Lead(TimeStampedModel):
         DUPLICATE = "duplicate", "Possible duplicate"
         LOCATION_UNKNOWN = "location_unknown", "Location unknown"
 
+    class Intent(models.TextChoices):
+        SEEKING_SERVICES = "seeking_services", "Seeking NDIS services"
+        FAMILY = "family", "Family member seeking for someone"
+        COORDINATOR = "coordinator", "Support coordinator seeking a provider"
+        WORKERS_FOR_CLIENT = "workers_for_client", "Seeking support workers for a client"
+        CHANGING_PROVIDER = "changing_provider", "Participant changing provider"
+        BOOKING = "booking", "Wants to book a consultation"
+        JOB_SEEKER = "job_seeker", "Job seeker"
+        PROVIDER_AD = "provider_ad", "Provider advertising"
+        INFORMATIONAL = "informational", "General discussion or news"
+        UNKNOWN = "unknown", "Not assessed"
+
+    class Priority(models.TextChoices):
+        HOT = "hot", "Hot (80-100)"
+        WARM = "warm", "Warm (50-79)"
+        COLD = "cold", "Cold (20-49)"
+        IRRELEVANT = "irrelevant", "Irrelevant (under 20)"
+
+    class Coverage(models.TextChoices):
+        INSIDE = "inside", "Inside coverage"
+        OUTSIDE = "outside", "Outside current coverage"
+        UNKNOWN = "unknown", "Location unknown"
+
     class Status(models.TextChoices):
         NEW = "new", "New"
+        AI_QUALIFIED = "ai_qualified", "AI qualified"
         REVIEW = "review", "Needs review"
         QUALIFIED = "qualified", "Qualified"
         CONTACT_ATTEMPTED = "contact_attempted", "Contact attempted"
         CONTACTED = "contacted", "Contacted"
         FOLLOW_UP = "follow_up", "Follow-up scheduled"
         INTERESTED = "interested", "Interested"
+        CONSULTATION_BOOKED = "consultation_booked", "Consultation booked"
         QUOTED = "quoted", "Quotation sent"
         CONVERTED = "converted", "Converted"
         NOT_INTERESTED = "not_interested", "Not interested"
+        DISQUALIFIED = "disqualified", "Disqualified"
         INVALID = "invalid", "Invalid / spam"
         DO_NOT_CONTACT = "do_not_contact", "Do not contact"
         CLOSED = "closed", "Closed"
@@ -218,8 +244,12 @@ class Lead(TimeStampedModel):
     last_checked_at = models.DateTimeField(default=timezone.now)
     source_available = models.BooleanField(default=True)
     label = models.CharField(max_length=30, choices=Label.choices, default=Label.REVIEW)
-    relevance_score = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Gemini's 0-100 score. Empty if the lead was not scored by AI.")
+    relevance_score = models.PositiveSmallIntegerField(null=True, blank=True, help_text="The AI's 0-100 score. Empty if the lead was not scored by AI.")
     relevance_reason = models.CharField(max_length=255, blank=True)
+    intent = models.CharField(max_length=30, choices=Intent.choices, default=Intent.UNKNOWN)
+    priority = models.CharField(max_length=12, choices=Priority.choices, blank=True, help_text="Set from the AI score. Empty if not scored.")
+    coverage = models.CharField(max_length=10, choices=Coverage.choices, default=Coverage.UNKNOWN)
+    ai_summary = models.CharField(max_length=300, blank=True)
     status = models.CharField(max_length=30, choices=Status.choices, default=Status.NEW)
     content_hash = models.CharField(max_length=64, db_index=True)
     duplicate_of = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="possible_duplicates")
@@ -235,7 +265,32 @@ class Lead(TimeStampedModel):
             models.Index(fields=["organisation", "status"]),
             models.Index(fields=["organisation", "label"]),
             models.Index(fields=["published_at"]),
+            models.Index(fields=["organisation", "priority"]),
         ]
+
+    # People who could become clients. Every other intent is not a lead.
+    CLIENT_INTENTS = frozenset(
+        {
+            Intent.SEEKING_SERVICES,
+            Intent.FAMILY,
+            Intent.COORDINATOR,
+            Intent.WORKERS_FOR_CLIENT,
+            Intent.CHANGING_PROVIDER,
+            Intent.BOOKING,
+        }
+    )
+
+    @classmethod
+    def priority_for(cls, score: int | None) -> str:
+        if score is None:
+            return ""
+        if score >= 80:
+            return cls.Priority.HOT
+        if score >= 50:
+            return cls.Priority.WARM
+        if score >= 20:
+            return cls.Priority.COLD
+        return cls.Priority.IRRELEVANT
 
     @staticmethod
     def make_hash(title: str, snippet: str, phone: str = "", email: str = "") -> str:

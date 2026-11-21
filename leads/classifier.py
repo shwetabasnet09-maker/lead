@@ -107,7 +107,7 @@ def classify_record(
             lead_type = candidate
             break
 
-    keyword_match = any(k.term.lower() in text for k in positive)
+    keyword_match = _contains_word(text, [k.term for k in positive])
     intent_match = _contains(text, INTENT_TERMS)
     if keyword_match:
         reasons.append("Keyword matched")

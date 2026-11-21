@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parsedate_to_datetime
-from urllib.parse import quote_plus, urljoin, urlparse
+from urllib.parse import parse_qs, quote_plus, urljoin, urlparse
 from urllib.robotparser import RobotFileParser
 
 import requests
@@ -103,6 +103,16 @@ def scrape_rss(source: Source, url: str) -> list[ScrapedRecord]:
     return records
 
 
+def _unwrap_redirect(url: str) -> str:
+    """Search engines link through a redirect. Store the address of the post itself."""
+    parsed = urlparse(url)
+    if parsed.netloc.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
+        target = parse_qs(parsed.query).get("uddg")
+        if target:
+            return target[0]
+    return url
+
+
 def _strip_html(value: str) -> str:
     try:
         from bs4 import BeautifulSoup
@@ -133,7 +143,7 @@ def scrape_html(source: Source, url: str, html: str | None = None) -> list[Scrap
         if not title_node or not link_node:
             continue
         title = title_node.get_text(" ", strip=True)
-        link = urljoin(url, link_node.get("href", ""))
+        link = _unwrap_redirect(urljoin(url, link_node.get("href", "")))
         snippet_node = node.select_one(selectors.get("snippet", "p"))
         date_node = node.select_one(selectors.get("date", "time"))
         name_node = node.select_one(selectors["name"]) if selectors.get("name") else None
@@ -157,36 +167,64 @@ def scrape_html(source: Source, url: str, html: str | None = None) -> list[Scrap
     return records
 
 
-def scrape_selenium(source: Source, url: str) -> list[ScrapedRecord]:
+def open_browser():
+    """Start headless Chrome. Selenium Manager downloads a matching driver if needed."""
     if not settings.SELENIUM_ENABLED:
-        raise ScraperError("Selenium is disabled on this hosting environment")
+        raise ScraperError("Selenium is disabled. Set SELENIUM_ENABLED=true once Chrome or Chromium is installed")
     try:
         from selenium import webdriver
-        from selenium.webdriver.common.by import By
-        from selenium.webdriver.support.ui import WebDriverWait
     except ImportError as exc:
         raise ScraperError("selenium package is not installed") from exc
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--window-size=1280,2000")
     options.add_argument(f"--user-agent={settings.SCRAPER_USER_AGENT}")
     driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(settings.SCRAPER_TIMEOUT_SECONDS)
+    return driver
+
+
+def scrape_selenium(source: Source, url: str, driver=None) -> list[ScrapedRecord]:
+    """Render the page in Chrome, then read it with the source's CSS selectors.
+
+    Pass ``driver`` to reuse one browser for several pages. Selectors may include
+    "empty", matched on a page that loaded correctly but has no results.
+    """
+    from selenium.common.exceptions import TimeoutException
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+
+    selectors = source.selectors or {}
+    item_selector = selectors.get("item")
+    if not item_selector:
+        raise ScraperError("Selenium source requires an 'item' CSS selector")
+    empty_selector = selectors.get("empty")
+    own_driver = driver is None
+    if own_driver:
+        driver = open_browser()
     try:
-        driver.set_page_load_timeout(settings.SCRAPER_TIMEOUT_SECONDS)
         driver.get(url)
-        item_selector = (source.selectors or {}).get("item")
-        if not item_selector:
-            raise ScraperError("Selenium source requires an 'item' CSS selector")
-        WebDriverWait(driver, settings.SCRAPER_TIMEOUT_SECONDS).until(
-            lambda browser: len(browser.find_elements(By.CSS_SELECTOR, item_selector)) > 0
-        )
-        return scrape_html(source, url, driver.page_source)
+
+        def loaded(browser):
+            if browser.find_elements(By.CSS_SELECTOR, item_selector):
+                return "items"
+            if empty_selector and browser.find_elements(By.CSS_SELECTOR, empty_selector):
+                return "empty"
+            return False
+
+        try:
+            state = WebDriverWait(driver, settings.SCRAPER_TIMEOUT_SECONDS).until(loaded)
+        except TimeoutException as exc:
+            raise ScraperError(f"{source.name} did not show results. The site may be blocking automated browsers") from exc
+        return [] if state == "empty" else scrape_html(source, url, driver.page_source)
     finally:
-        driver.quit()
+        if own_driver:
+            driver.quit()
 
 
-def scrape_source(source: Source, url: str) -> list[ScrapedRecord]:
+def scrape_source(source: Source, url: str, driver=None) -> list[ScrapedRecord]:
     if not source.is_runnable:
         raise ScraperError("Source is disabled or has not completed permission review")
     if not robots_allowed(source, url):
@@ -196,7 +234,7 @@ def scrape_source(source: Source, url: str) -> list[ScrapedRecord]:
     if source.source_type == Source.SourceType.HTML:
         return scrape_html(source, url)
     if source.source_type == Source.SourceType.SELENIUM:
-        return scrape_selenium(source, url)
+        return scrape_selenium(source, url, driver)
     raise ScraperError(f"Unsupported source type: {source.source_type}")
 
 
